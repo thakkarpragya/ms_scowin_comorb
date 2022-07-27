@@ -9,12 +9,17 @@ environ.setdefault('DJANGO_SETTINGS_MODULE', 'ms_scowin_comorb.settings')
 django.setup()
 from student_comorb.models import Student_reaction
 
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost', heartbeat=600, blocked_connection_timeout=300))
+# connection = pika.BlockingConnection(pika.ConnectionParameters('localhost', heartbeat=600, blocked_connection_timeout=300))
+amqp_url = 'amqp://guest:guest@rabbit-mq:5672?connection_attempts=10&retry_delay=10'
+url_params = pika.URLParameters(amqp_url)
+
+# connect to rabbitmq
+connection = pika.BlockingConnection(url_params)
 channel = connection.channel()
 channel.queue_declare(queue='studentcomorb')
 
 def callback(ch, method, properties, body):
-    print("Received in vacdrive...")
+    print("Received in studentcomorb...")
     print(body)
     data = json.loads(body)
     print(data)
@@ -32,9 +37,10 @@ def callback(ch, method, properties, body):
         student.studentName = data['studentName']       
         student.existingComorbidites = data['existingComorbidites']
         student.save()
-        print("student updated")    
+        print("student updated")
+    ch.basic_ack(delivery_tag=method.delivery_tag)
   
-channel.basic_consume(queue='studentcomorb', on_message_callback=callback, auto_ack=True)
+channel.basic_consume(queue='studentcomorb', on_message_callback=callback)
 print("Started Consuming...")
 channel.start_consuming()
 
